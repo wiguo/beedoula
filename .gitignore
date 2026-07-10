@@ -28,3 +28,4 @@ frontend/next-env.d.ts
 
 # Real family data - never commit
 data/family_notes_private*
+.langgraph_dev/
