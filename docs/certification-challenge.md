@@ -146,11 +146,31 @@ Before answering, the agent applies a hard safety rule baked into its system pro
 
 ### 3.1 Data sources and external APIs
 
-_TODO_
+**RAG corpus** (`data/`) — authoritative, freely distributable care guidance covering the four domains our eval questions probe:
+
+| File | Source | Covers |
+|---|---|---|
+| `cdc_milestone_moments.pdf` | CDC "Learn the Signs. Act Early." Milestone Moments booklet | Developmental milestones (2 months–5 years), when to act early |
+| `nichd_safe_sleep_for_your_baby.pdf` | NIH/NICHD Safe to Sleep® brochure | Safe sleep environment, SIDS risk reduction |
+| `who_infant_young_child_feeding.pdf` | WHO Infant and Young Child Feeding model chapter | Breastfeeding, formula, complementary feeding 0–24 months |
+| `aha_infant_cpr_choking_fact_sheet.pdf` | American Heart Association fact sheet | Infant choking response and CPR steps |
+| `family_notes_sample.md` | Written by the family (fictional sample in this repo) | *This* baby: allergies, feeding amounts, nap schedule, house rules, pediatrician contacts |
+
+The first four are the **vetted general knowledge**: they answer "what's true for babies of this age." The family notes are the **personal data** that makes answers specific: "what's true for *Mia*." Real family notes are never committed — they belong in a gitignored `data/family_notes_private.md`.
+
+**External API — Tavily web search.** A static corpus cannot know about last week's formula recall or this month's updated advisory. The agent calls Tavily when a question is time-sensitive (recalls, current guidance, product safety) or falls outside the corpus.
+
+**How they interact at runtime:** for a question like "Can Mia have scrambled eggs?", the agent combines all three layers — the family notes say Mia is allergic to eggs (personal), the WHO guide describes allergen introduction (general), and Tavily is available if the question had a current-events component (e.g., an egg-product recall). The agent's answer leads with the baby-specific fact, grounded by the guideline context.
 
 ### 3.2 Default chunking strategy and rationale
 
-_TODO_
+**Default: `RecursiveCharacterTextSplitter` with 750-token chunks (tiktoken-measured), no overlap** (`app/rag.py`).
+
+Why:
+1. **Our documents are section-structured.** Care guidelines are written as self-contained topical sections ("Safe sleep environment," "Feeding at 6–8 months," "Choking response steps"). 750 tokens is roughly one such section, so a chunk usually holds one complete, coherent answer unit — which is exactly what we want retrieved.
+2. **Token-based measurement matches the embedding model's view.** Measuring chunk size in tokens (via tiktoken) rather than characters keeps chunks consistently sized from the model's perspective, avoiding chunks that blow past useful embedding length.
+3. **Recursive splitting respects document structure.** The splitter breaks on paragraphs before sentences before words, so chunks tend to end at natural boundaries instead of mid-instruction — important when a chunk contains step-by-step safety instructions (choking response) that must not be cut in half.
+4. **Zero overlap is a deliberate baseline.** It maximizes corpus coverage per embedding dollar and gives us a clean baseline to measure against; if evaluation (Task 5) shows boundary-loss problems, chunk overlap and **parent-child chunking** (retrieve small, return the surrounding section) are the planned Task 6 upgrades.
 
 ---
 

@@ -25,3 +25,6 @@ frontend/next-env.d.ts
 
 # OS / editor
 .DS_Store
+
+# Real family data - never commit
+data/family_notes_private*
