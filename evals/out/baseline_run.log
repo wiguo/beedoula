@@ -4,3 +4,18 @@ View the evaluation results for experiment: 'baseline-73a721f3' at:
 https://smith.langchain.com/o/279a3655-33e3-491f-88cb-5e1223a9c59d/datasets/83649ed0-5a9a-4870-8151-2f1b36744e09/compare?selectedSessions=7c91fe1c-fb84-44cf-9d3d-c47c747133ca
 
 
+
+=== Mean scores overall ===
+context_recall     0.330
+faithfulness       0.446
+answer_accuracy    0.612
+
+=== Mean scores by kind ===
+        context_recall  faithfulness  answer_accuracy
+kind                                                 
+corpus           0.288         0.430            0.615
+memory           0.556         0.520            0.833
+web              0.500         0.502            0.250
+
+Per-question results: C:\aie10\beedoula\evals\out\results_baseline_20260710T154448Z.csv
+Experiment name: baseline-73a721f3

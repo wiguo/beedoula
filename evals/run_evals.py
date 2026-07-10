@@ -81,7 +81,9 @@ def _score(metric_name: str, **kwargs) -> float | None:
         result = asyncio.run(METRICS[metric_name].ascore(**kwargs))
         return float(result.value)
     except Exception as exc:  # noqa: BLE001 - one failed judge call must not kill the run
-        print(f"  [warn] {metric_name} failed: {exc}")
+        # ascii-safe: a cp1252 console must not crash the warning itself
+        detail = repr(exc)[:200].encode("ascii", "replace").decode()
+        print(f"  [warn] {metric_name} failed: {detail}")
         return None
 
 

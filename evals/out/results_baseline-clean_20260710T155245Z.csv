@@ -1,0 +1,30 @@
+question,kind,source,context_recall,faithfulness,answer_accuracy
+When can babies start eating solid foods?,corpus,golden,0.5,0.6666666666666666,0.5
+How much formula should a 6-month-old drink per feeding?,corpus,golden,0.0,0.0,0.5
+The baby fell off the couch and is crying - what should I check?,memory,golden,0.0,0.0,0.5
+"How do I do safe feeding and choking prevention, and what other safe infant care",corpus,ragas-synthetic,0.6666666666666666,,0.5
+Does this baby have any food allergies I should know about?,memory,golden,0.6666666666666666,0.8333333333333334,1.0
+How many naps does a 9-month-old typically take?,corpus,golden,0.0,0.5,1.0
+What is the baby's usual nap schedule?,memory,golden,1.0,0.75,1.0
+How long can prepared formula sit out before it's unsafe?,corpus,golden,0.0,0.25,1.0
+What's the current guidance on introducing peanut to babies?,web,golden,0.0,0.17647058823529413,0.5
+The baby has a diaper rash - what should I do?,corpus,golden,0.0,0.07142857142857142,0.5
+"As a Hispanic American parent or childcare provider, what steps can I take to lo",corpus,ragas-synthetic,0.8,0.38461538461538464,0.5
+What foods are choking hazards for a 1-year-old?,corpus,golden,0.0,0.0,0.5
+How should I put the baby down to sleep safely?,corpus,golden,0.6666666666666666,0.6363636363636364,1.0
+When should a baby be able to sit up on their own?,corpus,golden,0.0,0.5,0.5
+Can a 15-month-old drink cow's milk?,corpus,golden,0.0,0.6666666666666666,0.5
+"How do the ""early childhood development"" milestones in the CDC booklet connect w",corpus,ragas-synthetic,0.75,,0.75
+Is honey safe for a 10-month-old?,corpus,golden,0.0,0.2,0.75
+what be milestones and why do they matter for my child?,corpus,ragas-synthetic,1.0,0.2727272727272727,0.5
+How do I safely warm a bottle of breast milk?,corpus,golden,0.0,0.23076923076923078,1.0
+"How does breastfeeding affect mothers' health, and where is this discussed in th",corpus,ragas-synthetic,0.3333333333333333,0.8333333333333334,0.5
+What's a good bedtime routine for a 1-year-old?,corpus,golden,0.5,0.4444444444444444,0.75
+"How does the ""Teacher support"" guidance and ""coordination with doctors and teach",corpus,ragas-synthetic,0.75,0.2857142857142857,0.5
+What do I do if the baby is choking?,corpus,golden,0.0,0.0,1.0
+Have there been any recent baby formula recalls I should know about?,web,golden,0.0,0.1111111111111111,0.0
+My baby is 4 months old with a 38.2 C fever - what should I do?,corpus,golden,0.3333333333333333,0.09523809523809523,0.5
+What infant and young child feeding practices are highlighted in the chapter con,corpus,ragas-synthetic,0.3333333333333333,0.7142857142857143,0.5
+"In Section 1 Introduction and the discussion of breast-milk substitutes, what do",corpus,ragas-synthetic,0.0,0.8571428571428571,0.5
+What does the Milestone Moments Booklet say a 2 month old baby should do?,corpus,ragas-synthetic,1.0,0.9166666666666666,1.0
+Is it normal that my 8-month-old isn't crawling yet?,corpus,golden,0.3333333333333333,0.3,0.5

@@ -190,15 +190,36 @@ _TODO — public URL, hosting details_
 
 ### 5.1 Test dataset
 
-_TODO_
+The dataset (`beedoula-eval-v1` in LangSmith, 29 examples, built by `evals/build_dataset.py`) combines two sources:
+
+1. **9 synthetic examples** generated with the RAGAS `TestsetGenerator` over the guideline corpus, using the same Vercel AI Gateway models as the app. Corpus pages are merged per source and re-split into substantial sections first, because RAGAS's headline-extraction transforms fail on thin, image-heavy PDF pages.
+2. **20 hand-written golden questions** from Task 1, each with a reference answer and a `kind` tag: `corpus` (answerable from the guidelines), `memory` (depends on the baby's saved profile), and `web` (requires live search). This deliberately covers all three retrieval paths of the agent, not just RAG.
 
 ### 5.2 Evaluation harness
 
-_TODO_
+The harness (`evals/run_evals.py`) is a rerunnable script, isolated in its own uv project so the pinned RAGAS build can't destabilize the app:
+
+1. **Seeds the baby profile** through the agent server's store API (allergies, nap schedule, house rules matching the family notes), so memory questions are answerable and runs are reproducible.
+2. **Runs the real agent** — not a stripped-down RAG chain — against each question in a fresh thread via the LangGraph SDK, capturing the final answer and every tool result (retrieval chunks, profile reads, web results) as the retrieved contexts.
+3. **Scores three RAGAS metrics** with an LLM judge routed through the same gateway: **context recall** (did retrieval fetch the facts the reference needs?), **faithfulness** (is the answer grounded in what was retrieved?), and **answer accuracy** (does the answer match the reference?).
+4. **Logs everything to LangSmith** as a named experiment (`EVAL_EXPERIMENT_PREFIX`) and writes a per-question CSV to `evals/out/` — so baseline vs. improved comparisons in Task 6 are one environment variable apart.
 
 ### 5.3 Baseline results and conclusions
 
-_TODO — metric table + interpretation_
+Baseline (dense retrieval, k=4), experiment `baseline-clean-51b6438d`, 29/29 examples scored:
+
+| Metric | Overall | corpus | memory | web |
+|---|---|---|---|---|
+| Context recall | **0.33** | 0.33 | 0.56 | 0.00 |
+| Faithfulness | **0.40** | 0.40 | 0.53 | 0.14 |
+| Answer accuracy | **0.65** | 0.66 | 0.83 | 0.25 |
+
+**Conclusions:**
+
+1. **Retrieval is the bottleneck.** A context recall of 0.33 means the dense retriever usually fails to fetch all the facts the reference answer needs. Care questions mix exact tokens (ages like "10 months", thresholds like "38 °C", terms like "honey", "botulism") with paraphrased phrasing — a known weakness of pure dense retrieval and a direct motivation for the hybrid (dense + BM25) upgrade in Task 6.
+2. **The agent papers over retrieval gaps with parametric knowledge.** Answer accuracy (0.65) is much higher than faithfulness (0.40): when retrieval misses, the model answers from what it learned in training. Often correct — but in a safety domain we want verifiable, source-grounded answers, so faithfulness is the metric we most want to raise.
+3. **Memory works.** Memory-kind questions score best across the board (accuracy 0.83), confirming the profile store pipeline retrieves and applies baby-specific facts.
+4. **Web-kind scores are structurally noisy.** References for live-web questions describe expected *behavior* rather than fixed facts, so recall-against-reference is near zero by construction. We keep them in the set to watch answer accuracy, and treat their recall/faithfulness as a known limitation of the harness, not the agent.
 
 ---
 
