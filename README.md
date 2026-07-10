@@ -1,10 +1,10 @@
-# NestNote 🍼
+# BeeDoula 🐝
 
 **An agentic RAG assistant for babysitters and parents caring for infants (0–24 months).**
 
-NestNote answers everyday infant-care questions — feeding, sleep, safety, milestones — grounded in vetted care guidelines and the family's own notes. It remembers each baby's profile (age, allergies, routines), searches the live web for current advisories and recalls, and runs in any browser on phone or laptop.
+Your busy little helper for baby care: BeeDoula answers everyday infant-care questions — feeding, sleep, safety, milestones — grounded in vetted care guidelines and the family's own notes. It remembers each baby's profile (age, allergies, routines), searches the live web for current advisories and recalls, and runs in any browser on phone or laptop.
 
-> ⚠️ NestNote is a care-information assistant, not a medical professional. For emergencies, call 911 or your pediatrician.
+> ⚠️ BeeDoula is a care-information assistant, not a medical professional. For emergencies, call 911 or your pediatrician.
 
 ## Certification Challenge
 

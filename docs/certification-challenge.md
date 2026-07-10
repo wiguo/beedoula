@@ -1,4 +1,4 @@
-# Certification Challenge — NestNote: Infant Care Assistant (0–24 months)
+# Certification Challenge — BeeDoula 🐝: Infant Care Assistant (0–24 months)
 
 > Submission for the AI Engineering Certification Challenge (AI Makerspace).
 > Live app: _TODO (Step 4)_ · Demo video: _TODO (Step 7)_
@@ -43,7 +43,7 @@ Questions our application must answer well, spanning the corpus (guidelines), th
 
 | # | Question | Expected answer grounds |
 |---|---|---|
-| 1 | How much formula should a 6-month-old drink per feeding? | Feeding guidelines (≈6–8 oz per feeding, 4–5×/day) |
+| 1 | How much formula should a 6-month-old drink per feeding? | Feeding guidelines (≈180–240 ml per feeding, 4–5×/day) |
 | 2 | When can babies start eating solid foods? | Feeding guidelines (~6 months, readiness signs) |
 | 3 | Is honey safe for a 10-month-old? | Safety guidelines (no — botulism risk before 12 months) |
 | 4 | My baby is 4 months old with a 38.2 °C fever — what should I do? | Health guidelines (contact pediatrician; <3 months = emergency) |
