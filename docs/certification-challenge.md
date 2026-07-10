@@ -70,15 +70,75 @@ Questions our application must answer well, spanning the corpus (guidelines), th
 
 ### 2.1 Solution (one sentence)
 
-_TODO_
+BeeDoula is an agentic RAG chat assistant that answers infant-care questions from vetted care guidelines and the family's own notes, remembers each baby's profile across conversations, and searches the live web for current advisories and recalls — in any browser, on phone or laptop.
 
 ### 2.2 Infrastructure diagram and tooling choices
 
-_TODO — Mermaid diagram + one sentence per component_
+```mermaid
+flowchart TB
+    subgraph Client["📱 Client — any browser (phone/laptop)"]
+        UI[Next.js chat UI<br/>Vercel]
+    end
+    subgraph Server["🤖 Agent backend — Docker on Render"]
+        LG[LangGraph agent server]
+        CP[(Postgres<br/>checkpoints + store)]
+        Q[(Qdrant<br/>vector store)]
+        LG --- CP
+        LG --- Q
+    end
+    subgraph External["☁️ External services"]
+        GW[Vercel AI Gateway]
+        OAI[OpenAI<br/>gpt-4.1-mini + embeddings]
+        TAV[Tavily web search]
+        LS[LangSmith<br/>tracing & datasets]
+    end
+    UI -- "streamed messages<br/>(LangGraph API)" --> LG
+    LG -- "LLM calls" --> GW --> OAI
+    LG -- "web search tool" --> TAV
+    LG -. "traces / evals" .-> LS
+    RAGAS[RAGAS eval harness] -. "runs against" .-> LG
+    RAGAS -. "logs to" .-> LS
+```
+
+Why each component:
+
+| Component | Choice | Why |
+|---|---|---|
+| LLM | OpenAI `gpt-4.1-mini` | Strong instruction-following and tool-calling at a per-token cost low enough for a free-tier project. |
+| LLM gateway | Vercel AI Gateway | Satisfies the gateway requirement with one OpenAI-compatible base URL, adding provider failover and spend visibility without code changes. |
+| Agent orchestration | LangGraph | Gives us the agent loop, conditional tool-calling, and first-class checkpointer/store memory — and its server protocol is what our frontend streams against. |
+| Tools | RAG retriever · Tavily · memory tools | Retriever grounds answers in vetted guidelines; Tavily covers what a static corpus can't (recalls, current advisories); memory tools read/write the baby's profile. |
+| Embeddings | OpenAI `text-embedding-3-small` | Best cost/quality ratio for a small corpus; one vendor for LLM + embeddings keeps ops simple. |
+| Vector DB | Qdrant | Runs in-process for dev and as a free managed cluster in production, with one identical LangChain interface for both. |
+| Memory | LangGraph checkpointer (threads) + store (profile) | Checkpointer gives conversation continuity per thread; the store persists baby facts (allergies, routines) across threads — the hard memory requirement. |
+| Monitoring | LangSmith (free tier) | Full traces of every agent run — which tools fired, what was retrieved — essential for debugging and for our eval harness. |
+| Evaluation | RAGAS + LangSmith datasets | RAGAS provides RAG-specific metrics (faithfulness, context recall) out of the box; LangSmith stores the dataset and eval runs. |
+| Frontend | Next.js + shadcn/ui on Vercel | Streaming chat UI with a proven `useStream` integration to LangGraph; Vercel free tier gives a public HTTPS URL that works on any phone. |
+| Backend hosting | LangGraph Docker image on Render (free tier) | Render runs the long-lived agent server (with Postgres/Redis) that Vercel's serverless platform can't host — at zero cost. |
 
 ### 2.3 Agent workflow diagram
 
-_TODO — Mermaid diagram + 1–2 explanatory paragraphs_
+```mermaid
+flowchart TD
+    U([👤 Caregiver asks a question<br/>e.g. 'Can she have honey? She's 10 months.']) --> T[Checkpointer restores<br/>conversation thread]
+    T --> P[Agent loads baby profile<br/>from long-term store<br/>age, allergies, routines]
+    P --> R{Agent reasons:<br/>what do I need?}
+    R -- "care knowledge" --> RAG[📚 Retrieve from guidelines<br/>Qdrant vector search]
+    R -- "current events:<br/>recalls, advisories" --> TV[🌐 Tavily web search]
+    R -- "new fact about baby<br/>'she's allergic to eggs'" --> MEM[💾 Write to profile store]
+    RAG --> S{Safety check}
+    TV --> S
+    MEM --> S
+    S -- "emergency signs" --> E[🚨 Escalate: advise calling<br/>911 / pediatrician first]
+    S -- "routine question" --> A[Compose grounded answer<br/>with source citations,<br/>metric units, age-specific]
+    E --> O([Answer streamed to caregiver])
+    A --> O
+    O -- "caregiver decides & acts —<br/>human always in the loop" --> H[👤 Human judgment]
+```
+
+When a caregiver sends a message, the LangGraph checkpointer first restores the conversation thread (so "she" still means the same baby three messages later), and the agent loads the baby's profile from the long-term store — age, known allergies, routines — so every answer is specific to *this* child rather than a generic infant. The agent then reasons about what the question needs: care knowledge triggers retrieval from the vetted guidelines corpus in Qdrant (RAG); anything time-sensitive — product recalls, current advisories — triggers the Tavily web-search tool, because a static corpus can't know about last week's formula recall; and when the caregiver mentions a new fact about the baby ("she's allergic to eggs"), the agent writes it to the profile store so it's remembered in every future conversation.
+
+Before answering, the agent applies a hard safety rule baked into its system prompt: if the situation involves emergency warning signs (fever under 3 months, trouble breathing, injury after a fall), the response leads with escalation — call 911 or the pediatrician — before any other information. Routine answers are composed from the retrieved context with source citations, in metric units, calibrated to the baby's age. The human is always in the loop by design: BeeDoula informs, but the caregiver decides and acts — the app never diagnoses or replaces medical judgment.
 
 ---
 
