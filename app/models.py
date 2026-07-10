@@ -18,7 +18,12 @@ def get_chat_model(model_name: str | None = None, *, temperature: float = 0) -> 
     base_url = os.environ.get("LLM_GATEWAY_BASE_URL")
     api_key = (
         os.environ.get("LLM_GATEWAY_API_KEY") if base_url else None
-    ) or os.environ["OPENAI_API_KEY"]
+    ) or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "No LLM credential: set LLM_GATEWAY_API_KEY + LLM_GATEWAY_BASE_URL "
+            "(Vercel AI Gateway), or OPENAI_API_KEY for direct OpenAI."
+        )
     if not base_url and "/" in name:
         name = name.split("/", 1)[1]
     return ChatOpenAI(

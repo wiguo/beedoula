@@ -47,10 +47,17 @@ def _get_retriever():
         model = f"openai/{model}"
     elif not base_url and "/" in model:
         model = model.split("/", 1)[1]
+    api_key = (
+        os.environ.get("LLM_GATEWAY_API_KEY") if base_url else None
+    ) or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "No embeddings credential: set LLM_GATEWAY_API_KEY + "
+            "LLM_GATEWAY_BASE_URL (Vercel AI Gateway), or OPENAI_API_KEY."
+        )
     embeddings = OpenAIEmbeddings(
         model=model,
-        api_key=(os.environ.get("LLM_GATEWAY_API_KEY") if base_url else None)
-        or os.environ["OPENAI_API_KEY"],
+        api_key=api_key,
         base_url=base_url,
         check_embedding_ctx_length=not base_url,
     )
