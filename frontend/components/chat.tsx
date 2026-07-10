@@ -30,9 +30,10 @@ const API_URL =
 type StreamMessage = ReturnType<typeof useStream>["messages"][number];
 
 const SUGGESTIONS = [
-  "How often should I deworm my cat?",
-  "What vaccinations do kittens need?",
-  "What are signs of feline dehydration?",
+  "How much formula for a 6-month-old?",
+  "Is honey safe for a 10-month-old?",
+  "How do I put the baby down to sleep safely?",
+  "Does the baby have any allergies?",
 ];
 
 function toolIcon(name?: string) {
@@ -74,9 +75,15 @@ export function Chat({ assistantId }: { assistantId: string }) {
                 <Bot className="size-7 text-muted-foreground" />
               </div>
               <div className="space-y-1">
-                <h2 className="text-lg font-medium">Ask the cat health agent</h2>
+                <h2 className="text-lg font-medium">
+                  Ask BeeDoula anything about baby care
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Streams from your LangGraph deployment via a secure proxy.
+                  Feeding, sleep, safety, milestones — grounded in vetted
+                  guidelines and your family&apos;s notes.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  BeeDoula informs, you decide. In an emergency, call 911.
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
@@ -120,7 +127,7 @@ export function Chat({ assistantId }: { assistantId: string }) {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message the agent..."
+            placeholder="Ask about feeding, sleep, safety..."
             disabled={isLoading}
             className="h-10"
             autoFocus

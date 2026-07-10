@@ -17,12 +17,14 @@ export function getMessageText(content: unknown): string {
 export function toolLabel(name?: string): string {
   switch (name) {
     case "retrieve_information":
-      return "Knowledge base";
+      return "Care guidelines";
     case "tavily_search":
     case "tavily_search_results_json":
       return "Web search";
-    case "arxiv":
-      return "Arxiv";
+    case "get_baby_profile":
+      return "Baby profile";
+    case "save_baby_fact":
+      return "Remembering";
     default:
       return name ?? "tool";
   }

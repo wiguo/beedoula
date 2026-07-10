@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Annotated
 
 import tiktoken
-from langchain_community.document_loaders import DirectoryLoader, PyMuPDFLoader
+from langchain_community.document_loaders import DirectoryLoader, PyMuPDFLoader, TextLoader
 from langchain_core.tools import tool
 from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
@@ -22,12 +22,14 @@ def _tiktoken_len(text: str) -> int:
 def _get_retriever():
     data_dir = os.environ.get("RAG_DATA_DIR", "data")
 
-    try:
-        documents = DirectoryLoader(
-            data_dir, glob="**/*.pdf", loader_cls=PyMuPDFLoader
-        ).load()
-    except Exception:
-        documents = []
+    documents = []
+    for glob, loader_cls in (("**/*.pdf", PyMuPDFLoader), ("**/*.md", TextLoader)):
+        try:
+            documents.extend(
+                DirectoryLoader(data_dir, glob=glob, loader_cls=loader_cls).load()
+            )
+        except Exception:
+            pass
 
     if not documents:
         return None
@@ -37,9 +39,20 @@ def _get_retriever():
     )
     chunks = splitter.split_documents(documents)
 
+    # Embeddings follow the same gateway routing as chat (see app/models.py).
+    # Gateways expect plain-string input, hence check_embedding_ctx_length=False.
+    base_url = os.environ.get("LLM_GATEWAY_BASE_URL")
+    model = os.environ.get("OPENAI_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+    if base_url and "/" not in model:
+        model = f"openai/{model}"
+    elif not base_url and "/" in model:
+        model = model.split("/", 1)[1]
     embeddings = OpenAIEmbeddings(
-        model=os.environ.get("OPENAI_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
-        openai_api_key=os.environ["OPENAI_API_KEY"],
+        model=model,
+        api_key=(os.environ.get("LLM_GATEWAY_API_KEY") if base_url else None)
+        or os.environ["OPENAI_API_KEY"],
+        base_url=base_url,
+        check_embedding_ctx_length=not base_url,
     )
     vectorstore = QdrantVectorStore.from_documents(
         documents=chunks,
@@ -54,7 +67,7 @@ def _get_retriever():
 def retrieve_information(
     query: Annotated[str, "query to ask the retrieve information tool"],
 ) -> str:
-    """Retrieve information about feline health, including life stage care, nutrition, vaccinations, parasite control, behavior, diagnostics, and veterinary guidelines for cats."""
+    """Retrieve infant-care information (babies 0-24 months) from vetted guidelines — feeding and nutrition (WHO), safe sleep (NICHD), developmental milestones (CDC), choking response and CPR (AHA) — and from this family's own care notes about their baby (allergies, routines, schedules, house rules)."""
     retriever = _get_retriever()
     docs = retriever.invoke(query) if retriever else []
     if not docs:

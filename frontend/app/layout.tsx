@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cat Health Agent",
-  description: "A LangGraph agent chat UI built with Next.js and shadcn/ui",
+  title: "BeeDoula 🐝 — Infant Care Assistant",
+  description:
+    "Trustworthy, baby-specific answers for babysitters and parents of babies 0–24 months. Grounded in vetted guidelines and your family's notes.",
 };
 
 export default function RootLayout({
