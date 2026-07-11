@@ -27,3 +27,5 @@ services:
         value: openai/text-embedding-3-small
       - key: RAG_DATA_DIR
         value: data
+      - key: RETRIEVER_MODE
+        value: hybrid
