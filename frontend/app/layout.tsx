@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BeeDoula 🐝 — Infant Care Assistant",
+  title: "BeeDoula 🐝 — Babysitter Care Guide",
   description:
-    "Trustworthy, baby-specific answers for babysitters and parents of babies 0–24 months. Grounded in vetted guidelines and your family's notes.",
+    "Baby-care guidance for babysitters, grounded in vetted guidelines and the family's notes. Not medical advice.",
 };
 
 export default function RootLayout({

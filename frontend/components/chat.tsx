@@ -76,14 +76,15 @@ export function Chat({ assistantId }: { assistantId: string }) {
               </div>
               <div className="space-y-1">
                 <h2 className="text-lg font-medium">
-                  Ask BeeDoula anything about baby care
+                  Quick, grounded guidance while you babysit
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Feeding, sleep, safety, milestones — grounded in vetted
-                  guidelines and your family&apos;s notes.
+                  Follow the parents&apos; instructions and vetted infant-care
+                  guidance for feeding, sleep, safety, and milestones.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  BeeDoula informs, you decide. In an emergency, call 911.
+                  Check the baby&apos;s family notes first, and contact the parents
+                  or pediatrician whenever you are unsure.
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
@@ -145,6 +146,11 @@ export function Chat({ assistantId }: { assistantId: string }) {
             )}
           </Button>
         </form>
+        <p className="mx-auto w-full max-w-3xl px-4 pb-3 text-center text-xs leading-relaxed text-muted-foreground">
+          BeeDoula provides general care information, not diagnosis, treatment,
+          or medical advice. Contact the baby&apos;s parents or pediatrician when
+          unsure.
+        </p>
       </div>
     </div>
   );

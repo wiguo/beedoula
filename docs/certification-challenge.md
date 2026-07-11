@@ -9,11 +9,11 @@
 
 ### 1.1 Problem statement (one sentence)
 
-Babysitters and parents caring for an infant (0–24 months) cannot quickly get trustworthy answers to everyday care questions that account for *this specific baby's* age, allergies, and routines.
+Babysitters caring for an infant (0–24 months) cannot quickly get trustworthy answers that combine the parents' instructions with age-specific, vetted care guidance.
 
 ### 1.2 Why this is a problem for our user
 
-Our user is a **babysitter or a new parent** who is alone with a baby and needs an answer *right now*: How much formula does a 6-month-old take? Is this fever something to worry about? Can she have honey yet? Why won't he settle for his nap? Infant care is uniquely unforgiving — the answers change month by month as the baby develops (what's safe at 12 months is dangerous at 6), and the stakes of getting it wrong (choking hazards, unsafe sleep, allergen exposure) are far higher than in almost any other domain of everyday life. Babysitters face an extra layer of the problem: they don't know this baby's history, and the parents are exactly the people they can't easily reach — they're out.
+Our primary user is a **babysitter** who is alone with a baby and needs an answer *right now*: How much formula does this baby take? Is honey safe at 10 months? What is the usual nap schedule? Infant care is uniquely unforgiving — the answers change month by month, and the stakes of getting choking, sleep, or allergen guidance wrong are high. Parents are secondary participants: they provide the baby's profile, routines, allergies, emergency contacts, and house rules before care begins.
 
 Today, caregivers cope with a patchwork: they text the parents and wait, they Google and get a wall of conflicting mommy-blogs, ad-laden listicles, and outdated advice, or they dig through the family's handwritten notes, fridge printouts, and pediatrician handout folder. None of these is good enough. Texting is slow and often goes unanswered at the worst moment. Web search is generic — it doesn't know the baby is 7 months old, allergic to eggs, and on a specific nap schedule — and forces a stressed caregiver to adjudicate between contradictory sources under time pressure. And the family's own notes, the most relevant information of all, are scattered, unsearchable, and usually not where the caregiver is standing. The result: slow answers, guesswork, unnecessary panic calls, and occasionally genuinely unsafe decisions.
 
@@ -62,7 +62,7 @@ Questions our application must answer well, spanning the corpus (guidelines), th
 | 17 | Have there been any recent recalls of [specific formula brand]? | **Tavily live web search** |
 | 18 | What's the current guidance on peanut introduction? | Guidelines + Tavily (current advisories) |
 | 19 | Can a 15-month-old drink cow's milk? | Feeding guidelines (yes, whole milk after 12 months) |
-| 20 | The baby fell off the couch and is crying — what do I check? | Health guidelines (warning signs; when to call 911) |
+| 20 | The baby fell off the couch and is crying — what do I check? | Health guidelines (warning signs; when to call local emergency services) |
 
 ---
 
@@ -70,7 +70,7 @@ Questions our application must answer well, spanning the corpus (guidelines), th
 
 ### 2.1 Solution (one sentence)
 
-BeeDoula is an agentic RAG chat assistant that answers infant-care questions from vetted care guidelines and the family's own notes, remembers each baby's profile across conversations, and searches the live web for current advisories and recalls — in any browser, on phone or laptop.
+BeeDoula is an agentic RAG assistant that helps babysitters follow the parents' instructions and vetted infant-care guidance when the parents are unavailable, while clearly remaining a general-information tool rather than a medical app.
 
 ### 2.2 Infrastructure diagram and tooling choices
 
@@ -129,7 +129,7 @@ flowchart TD
     RAG --> S{Safety check}
     TV --> S
     MEM --> S
-    S -- "emergency signs" --> E[🚨 Escalate: advise calling<br/>911 / pediatrician first]
+    S -- "emergency signs" --> E[🚨 Escalate first:<br/>call local emergency services]
     S -- "routine question" --> A[Compose grounded answer<br/>with source citations,<br/>metric units, age-specific]
     E --> O([Answer streamed to caregiver])
     A --> O
@@ -138,7 +138,7 @@ flowchart TD
 
 When a caregiver sends a message, the LangGraph checkpointer first restores the conversation thread (so "she" still means the same baby three messages later), and the agent loads the baby's profile from the long-term store — age, known allergies, routines — so every answer is specific to *this* child rather than a generic infant. The agent then reasons about what the question needs: care knowledge triggers retrieval from the vetted guidelines corpus in Qdrant (RAG); anything time-sensitive — product recalls, current advisories — triggers the Tavily web-search tool, because a static corpus can't know about last week's formula recall; and when the caregiver mentions a new fact about the baby ("she's allergic to eggs"), the agent writes it to the profile store so it's remembered in every future conversation.
 
-Before answering, the agent applies a hard safety rule baked into its system prompt: if the situation involves emergency warning signs (fever under 3 months, trouble breathing, injury after a fall), the response leads with escalation — call 911 or the pediatrician — before any other information. Routine answers are composed from the retrieved context with source citations, in metric units, calibrated to the baby's age. The human is always in the loop by design: BeeDoula informs, but the caregiver decides and acts — the app never diagnoses or replaces medical judgment.
+Before answering, the agent applies a hard safety rule baked into its system prompt: if the situation involves emergency warning signs (fever under 3 months, trouble breathing, injury after a fall), the response leads with a direction to call the local emergency number immediately and not wait for BeeDoula. Routine answers are composed from retrieved context with source citations, in metric units, calibrated to the baby's age. BeeDoula is explicitly not a medical app: it provides general care information, never diagnoses or recommends treatment, and directs the babysitter to the parents or pediatrician when unsure.
 
 ---
 
