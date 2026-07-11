@@ -9,8 +9,8 @@ __pycache__/
 .env
 .env.local
 
-# uv
-uv.lock
+# The root uv.lock is committed for reproducible Render builds.
+evals/uv.lock
 
 # LangGraph
 .langgraph_api/
