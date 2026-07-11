@@ -178,11 +178,19 @@ Why:
 
 ### 4.1 Architecture notes
 
-_TODO_
+The prototype is the stack from the Task 2 diagrams, working end to end:
+
+- **Agent** (`app/graphs/simple_agent.py`): LangGraph `create_agent` with a safety-first system prompt (emergency escalation before anything else, no diagnosis, metric units only, cite sources).
+- **Tools** (`app/tools.py`): `retrieve_information` (RAG over the corpus + family notes), `tavily_search` (live web), `get_baby_profile` / `save_baby_fact` (long-term memory in the LangGraph store, namespace `("beedoula", "baby_profile")`).
+- **LLM + embeddings** (`app/models.py`, `app/rag.py`): both routed through the Vercel AI Gateway with a single `vck_` key — no direct provider keys anywhere.
+- **Frontend** (`frontend/`): Next.js streaming chat with an API passthrough that keeps keys server-side; tool activity is shown as labeled badges ("Care guidelines", "Baby profile", "Web search", "Remembering").
+
+Verified end to end by two smoke tests (`smoke_test_local.py` in-process, `smoke_test_sdk.py` against the server): the agent answers care questions grounded in the WHO/NICHD/CDC/AHA corpus, saves a fact told in one conversation ("Mia is allergic to eggs"), and applies it in a *different* thread ("no scrambled eggs — your family notes say...").
 
 ### 4.2 Deployment
 
-_TODO — public URL, hosting details_
+- **Backend**: LangGraph server (Docker/free tier) on Render — blueprint in `render.yaml`. _URL: TODO after deploy._
+- **Frontend**: Vercel. _URL: TODO after deploy._
 
 ---
 
@@ -227,18 +235,53 @@ Baseline (dense retrieval, k=4), experiment `baseline-clean-51b6438d`, 29/29 exa
 
 ### 6.1 Advanced retrieval technique
 
-_TODO — technique + why it fits this use case_
+**Hybrid retrieval: dense vectors + BM25, fused with reciprocal rank fusion (RRF).** Each query now runs both a dense similarity search and a BM25 lexical search over the same 750-token chunks (top-10 each), and RRF merges the two rankings into the final top-4 (`app/rag.py`, toggled by `RETRIEVER_MODE=hybrid`).
+
+Why it fits this use case: infant-care questions mix **exact tokens** that dense embeddings tend to smear — ages ("10 months"), thresholds ("38 °C"), specific substances ("honey") — with **paraphrased intent** ("won't settle for his nap") that lexical search alone can't match. BM25 catches the exact terms, dense catches the paraphrase, and RRF rewards chunks both retrievers agree on.
 
 ### 6.2 Performance comparison
 
-_TODO — baseline vs. advanced table_
+Same harness, dataset, and judge; only the retriever changed (experiments `baseline-clean-51b6438d` vs `hybrid-7543bfad`):
+
+| Metric | Baseline (dense) | Hybrid (dense + BM25 + RRF) | Δ |
+|---|---|---|---|
+| Context recall | 0.332 | **0.371** | +0.039 |
+| Faithfulness | 0.396 | **0.441** | +0.045 |
+| Answer accuracy | 0.647 | 0.629 | −0.018 |
+
+Hybrid retrieval improved both retrieval quality (context recall +12% relative) and grounding (faithfulness +11% relative), with answer accuracy flat within noise.
 
 ### 6.3 Second improvement (with eval evidence)
 
-_TODO_
+The baseline analysis (5.3) showed the agent papering over retrieval gaps with parametric knowledge — high accuracy, low faithfulness. So the second change targets a different piece of the solution: the **system prompt**. A GROUNDING section now requires every factual claim to come from this conversation's tool results (retrieved passages, baby profile, web results), quoting amounts and thresholds exactly, and — when the sources don't cover the question — saying so plainly and deferring to the pediatrician instead of filling the gap from memory (`app/graphs/simple_agent.py`).
+
+Full progression across the three experiments:
+
+| Metric | Baseline | Hybrid | Hybrid + grounded prompt | Δ vs baseline |
+|---|---|---|---|---|
+| Context recall | 0.332 | 0.371 | **0.420** | **+27% rel.** |
+| Faithfulness | 0.396 | 0.441 | **0.528** | **+33% rel.** |
+| Answer accuracy | 0.647 | 0.629 | 0.586 | −9% rel. |
+
+Faithfulness — the metric that matters most in a safety domain — improved by a third over baseline. Context recall also rose, as the grounded agent retrieves more before answering. The answer-accuracy dip is a deliberate trade: the agent now sometimes answers "the guidelines I have don't cover this — ask your pediatrician" where it previously produced a plausible-but-ungrounded answer. Judged against a reference, the refusal scores lower; judged as a product for stressed caregivers of infants, **verifiable-or-defer is the correct behavior**. This is a meaningfully improved response profile, demonstrated with the eval harness as evidence.
 
 ---
 
 ## Task 7: Next Steps
 
-_TODO — keep vs. change for Demo Day_
+**What we keep for Demo Day** — the architecture earned its place:
+
+- **The LangGraph agent with three grounding layers** (guideline RAG, baby-profile memory, live web search): every eval segment confirmed each layer pulls its weight — memory questions score highest, and web search covers what a static corpus can't.
+- **One-key LLM gateway routing** for chat and embeddings: simplest possible ops, provider flexibility for free.
+- **Hybrid retrieval + the grounded prompt**: +33% relative faithfulness with three days of eval evidence behind it.
+- **The eval harness itself**: it's rerunnable, tagged by question kind, and one env variable per experiment — it already caught one regression during development and becomes our pre-release gate.
+- **The Next.js/Vercel frontend**: streaming, mobile-friendly, cheap.
+
+**What we change** — ordered by impact:
+
+1. **Real persistence.** The free-tier backend runs LangGraph's in-memory server, so baby profiles and threads reset on restart. Demo Day version: the full LangGraph Docker image with Postgres (checkpoints + store) and a persistent Qdrant Cloud collection indexed once at deploy, not per boot.
+2. **Multi-family support.** One shared profile namespace was fine for a prototype; real use needs auth and a namespace per family — the store API already supports it.
+3. **Retrieval, round two.** The Session 7 playbook has two proven upgrades we haven't spent yet: parent-child chunking (retrieve small, hand the model the whole section — directly targets the remaining context-recall gap) and a reranker over the hybrid candidates.
+4. **A bigger, licensed corpus.** Four documents cover the eval set thinly (fever and injury guidance is weakest); adding vetted content on illness, teething, and vaccination schedules — with licensing checked — raises the ceiling on every metric.
+5. **Answer-accuracy recovery.** The grounding trade-off cost 6 accuracy points; better retrieval (#3, #4) should win most of them back without loosening the grounding rule.
+6. **Ops maturity**: flag low-faithfulness answers in LangSmith for review, and run the eval harness in CI so no prompt or retriever change ships without a before/after table.
