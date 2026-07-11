@@ -20,11 +20,21 @@ This project is a submission for the AI Engineering Certification Challenge.
 | LLM | OpenAI via LLM gateway |
 | Orchestration | LangGraph |
 | Tools | RAG retriever · Tavily web search · baby-profile memory |
-| Embeddings / Vector DB | OpenAI `text-embedding-3-small` / Qdrant |
-| Memory | LangGraph checkpointer (threads) + store (baby profile) |
+| Embeddings / retrieval | OpenAI `text-embedding-3-small` / in-memory Qdrant + BM25 |
+| Memory | LangGraph development checkpointer + shared profile store (non-durable) |
 | Monitoring / Evals | LangSmith / RAGAS |
-| Frontend | Next.js + shadcn/ui, deployed on Vercel |
-| Agent server | LangGraph server (Docker), deployed on Render |
+| Frontend | Next.js + shadcn/ui, configured for Vercel deployment |
+| Agent server | LangGraph development server, configured for Render |
+
+### Prototype status and limits
+
+The repository currently implements a single-family prototype. Its Qdrant index,
+conversation checkpoints, and baby-profile store are process-local and can reset when
+the backend restarts. Public deployment URLs, persistent Qdrant/Postgres storage,
+authentication, family isolation, deterministic emergency triage, and verified source
+citations are planned work rather than current features. See the
+[written deliverables](docs/certification-challenge.md) for separate current and target
+architecture diagrams.
 
 ## Local development
 

@@ -15,19 +15,23 @@ def main() -> None:
 
     from app.graphs.simple_agent import SYSTEM_PROMPT  # noqa: F401 - import check
     from app.models import get_chat_model
-    from app.rag import _get_retriever
+    from app.rag import retrieve_information
     from app.tools import get_tool_belt
 
     print("[1] tools:", [getattr(t, "name", t) for t in get_tool_belt()])
 
-    retriever = _get_retriever()
-    assert retriever is not None, "retriever is None - no documents loaded"
-    docs = retriever.invoke("When is honey safe for a baby?")
-    print(f"[2] RAG loaded, retrieved {len(docs)} chunks; first source:",
-          docs[0].metadata.get("source", "?") if docs else "-")
-    mia = retriever.invoke("What allergies does Mia have?")
-    print("[3] family notes indexed:",
-          any("family_notes" in d.metadata.get("source", "") for d in mia))
+    honey_context = retrieve_information.invoke(
+        {"query": "When is honey safe for a baby?"}
+    )
+    assert "honey" in honey_context.lower(), "RAG did not retrieve honey guidance"
+    print(f"[2] RAG loaded, retrieved {len(honey_context)} characters")
+
+    mia_context = retrieve_information.invoke(
+        {"query": "What allergies does Mia have?"}
+    )
+    family_notes_found = "egg" in mia_context.lower() and "mia" in mia_context.lower()
+    assert family_notes_found, "RAG did not retrieve Mia's family notes"
+    print("[3] family notes indexed:", family_notes_found)
 
     print("[4] chat model:", get_chat_model().model_name)
 

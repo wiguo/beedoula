@@ -24,7 +24,10 @@ def main():
         {
             "messages": [
                 HumanMessage(
-                    content="What are the recommended vaccinations for kittens? use retrieve_information tool."
+                    content=(
+                        "How should I put a 6-month-old baby down to sleep safely? "
+                        "Use the care guidelines."
+                    )
                 )
             ]
         }

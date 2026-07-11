@@ -74,25 +74,29 @@ BeeDoula is an agentic RAG assistant that helps babysitters follow the parents' 
 
 ### 2.2 Infrastructure diagram and tooling choices
 
+#### Implemented prototype and deployment configuration
+
 ```mermaid
 flowchart TB
-    subgraph Client["📱 Client — any browser (phone/laptop)"]
-        UI[Next.js chat UI<br/>Vercel]
+    subgraph Client["Client — implemented in frontend/"]
+        UI[Next.js + shadcn/ui<br/>streaming chat]
+        PX[Next.js server-side<br/>LangGraph API proxy]
+        UI --> PX
     end
-    subgraph Server["🤖 Agent backend — Docker on Render"]
-        LG[LangGraph agent server]
-        CP[(Postgres<br/>checkpoints + store)]
-        Q[(Qdrant<br/>vector store)]
-        LG --- CP
-        LG --- Q
+    subgraph Server["Backend — Render blueprint runs langgraph dev"]
+        LG[LangGraph create_agent<br/>tool-calling loop]
+        MEM[(LangGraph development<br/>checkpoints + shared profile<br/>non-durable)]
+        IDX[(In-memory Qdrant + BM25<br/>built from data/ per process)]
+        LG --- MEM
+        LG --- IDX
     end
-    subgraph External["☁️ External services"]
+    subgraph External["External services"]
         GW[Vercel AI Gateway]
-        OAI[OpenAI<br/>gpt-4.1-mini + embeddings]
+        OAI[OpenAI<br/>gpt-5.4-mini + embeddings]
         TAV[Tavily web search]
         LS[LangSmith<br/>tracing & datasets]
     end
-    UI -- "streamed messages<br/>(LangGraph API)" --> LG
+    PX -- "streamed messages<br/>(LangGraph API)" --> LG
     LG -- "LLM calls" --> GW --> OAI
     LG -- "web search tool" --> TAV
     LG -. "traces / evals" .-> LS
@@ -100,45 +104,68 @@ flowchart TB
     RAGAS -. "logs to" .-> LS
 ```
 
-Why each component:
+This diagram is the architecture implemented in the repository today. Frontend and
+Render deployment configurations are present, but a public deployment is not claimed until the
+working frontend and backend URLs are added in Task 4. The Qdrant collection, checkpoints,
+and profile store are currently process-local: they reset when the backend restarts, and
+the corpus is embedded again when a new process first performs retrieval.
 
-| Component | Choice | Why |
-|---|---|---|
-| LLM | OpenAI `gpt-4.1-mini` | Strong instruction-following and tool-calling at a per-token cost low enough for a free-tier project. |
-| LLM gateway | Vercel AI Gateway | Satisfies the gateway requirement with one OpenAI-compatible base URL, adding provider failover and spend visibility without code changes. |
-| Agent orchestration | LangGraph | Gives us the agent loop, conditional tool-calling, and first-class checkpointer/store memory — and its server protocol is what our frontend streams against. |
-| Tools | RAG retriever · Tavily · memory tools | Retriever grounds answers in vetted guidelines; Tavily covers what a static corpus can't (recalls, current advisories); memory tools read/write the baby's profile. |
-| Embeddings | OpenAI `text-embedding-3-small` | Best cost/quality ratio for a small corpus; one vendor for LLM + embeddings keeps ops simple. |
-| Vector DB | Qdrant | Runs in-process for dev and as a free managed cluster in production, with one identical LangChain interface for both. |
-| Memory | LangGraph checkpointer (threads) + store (profile) | Checkpointer gives conversation continuity per thread; the store persists baby facts (allergies, routines) across threads — the hard memory requirement. |
-| Monitoring | LangSmith (free tier) | Full traces of every agent run — which tools fired, what was retrieved — essential for debugging and for our eval harness. |
-| Evaluation | RAGAS + LangSmith datasets | RAGAS provides RAG-specific metrics (faithfulness, context recall) out of the box; LangSmith stores the dataset and eval runs. |
-| Frontend | Next.js + shadcn/ui on Vercel | Streaming chat UI with a proven `useStream` integration to LangGraph; Vercel free tier gives a public HTTPS URL that works on any phone. |
-| Backend hosting | LangGraph Docker image on Render (free tier) | Render runs the long-lived agent server (with Postgres/Redis) that Vercel's serverless platform can't host — at zero cost. |
+#### Planned production architecture (not yet implemented)
+
+```mermaid
+flowchart LR
+    U[Authenticated parent<br/>or babysitter] --> FE[Next.js frontend<br/>Vercel]
+    FE --> API[Production LangGraph<br/>service]
+    API --> PG[(Postgres<br/>durable checkpoints +<br/>family-scoped profiles)]
+    API --> QC[(Qdrant Cloud<br/>pre-indexed collection)]
+    API --> GW[Vercel AI Gateway]
+    API --> TV[Tavily]
+    API -. traces .-> LS[LangSmith]
+```
+
+Postgres, managed Qdrant, authentication, per-family namespaces, one-time ingestion,
+and a production server command are **planned upgrades**, not features of the current
+prototype.
+
+Why each component and its current status:
+
+| Component | Choice | Why | Status now |
+|---|---|---|---|
+| LLM | OpenAI `gpt-5.4-mini` | Strong instruction-following and tool-calling at a cost suitable for a small prototype. | Implemented through configuration. |
+| LLM gateway | Vercel AI Gateway | One OpenAI-compatible endpoint provides routing and spend visibility without provider-specific application code. | Implemented; requires a valid deployment credential. |
+| Agent orchestration | LangGraph | Supplies the tool-calling loop, thread protocol, checkpointer, and store interfaces used by the frontend and memory tools. | Implemented with the development server. |
+| Tools | RAG retriever · Tavily · memory tools | RAG covers static guidance, Tavily covers time-sensitive questions, and memory tools hold baby-specific facts. | Implemented; Tavily is enabled only when its key is configured. |
+| Embeddings | OpenAI `text-embedding-3-small` | Appropriate cost and quality for this small corpus and compatible with the gateway. | Implemented; embeddings are regenerated per backend process. |
+| Vector retrieval | In-memory Qdrant + BM25 + RRF | Dense retrieval handles paraphrases while BM25 preserves exact ages, amounts, and safety terms. | Implemented and non-durable; Qdrant Cloud is planned. |
+| Memory | LangGraph development checkpointer + store | Demonstrates thread continuity and cross-thread profile recall. | Implemented for one shared demo family; resets on restart. |
+| Monitoring | LangSmith | Captures tool and model traces needed for debugging and evaluation. | Implemented when tracing credentials are configured. |
+| Evaluation | RAGAS + LangSmith datasets | Supplies context recall, faithfulness, and answer-accuracy measurements over the real agent. | Implemented; per-question CSV evidence is committed. |
+| Frontend | Next.js + shadcn/ui | Provides a mobile-friendly streaming chat and keeps backend credentials server-side. | Implemented; public Vercel URL still required. |
+| Backend hosting | Render native Python service | Hosts the LangGraph HTTP API outside Vercel's serverless runtime. | Blueprint implemented with `langgraph dev`; production runtime and public URL remain. |
 
 ### 2.3 Agent workflow diagram
 
 ```mermaid
 flowchart TD
-    U([👤 Caregiver asks a question<br/>e.g. 'Can she have honey? She's 10 months.']) --> T[Checkpointer restores<br/>conversation thread]
-    T --> P[Agent loads baby profile<br/>from long-term store<br/>age, allergies, routines]
-    P --> R{Agent reasons:<br/>what do I need?}
+    U([Caregiver asks a question<br/>e.g. 'Can she have honey? She's 10 months.']) --> T[Development checkpointer restores<br/>the thread when available]
+    T --> R{Agent chooses tools<br/>under system-prompt rules}
+    R -- "baby-specific context needed" --> P[Read shared baby profile]
     R -- "care knowledge" --> RAG[📚 Retrieve from guidelines<br/>Qdrant vector search]
     R -- "current events:<br/>recalls, advisories" --> TV[🌐 Tavily web search]
     R -- "new fact about baby<br/>'she's allergic to eggs'" --> MEM[💾 Write to profile store]
-    RAG --> S{Safety check}
-    TV --> S
-    MEM --> S
-    S -- "emergency signs" --> E[🚨 Escalate first:<br/>call local emergency services]
-    S -- "routine question" --> A[Compose grounded answer<br/>with source citations,<br/>metric units, age-specific]
-    E --> O([Answer streamed to caregiver])
-    A --> O
+    P --> A[Model composes response]
+    RAG --> A
+    TV --> A
+    MEM --> A
+    R -- "emergency language" --> E[System prompt requires<br/>immediate escalation wording]
+    E --> A
+    A --> O([Answer streamed to caregiver])
     O -- "caregiver decides & acts —<br/>human always in the loop" --> H[👤 Human judgment]
 ```
 
-When a caregiver sends a message, the LangGraph checkpointer first restores the conversation thread (so "she" still means the same baby three messages later), and the agent loads the baby's profile from the long-term store — age, known allergies, routines — so every answer is specific to *this* child rather than a generic infant. The agent then reasons about what the question needs: care knowledge triggers retrieval from the vetted guidelines corpus in Qdrant (RAG); anything time-sensitive — product recalls, current advisories — triggers the Tavily web-search tool, because a static corpus can't know about last week's formula recall; and when the caregiver mentions a new fact about the baby ("she's allergic to eggs"), the agent writes it to the profile store so it's remembered in every future conversation.
+When a caregiver sends a message, the development checkpointer can restore that thread. The model then decides which tools to call under the system prompt: it reads the shared baby profile when the question is baby-specific, retrieves care information from the in-memory hybrid index, uses Tavily for time-sensitive questions, or writes a newly supplied fact to the profile. These choices are agent decisions rather than guaranteed deterministic steps. Profile facts can be recalled across threads while the same backend process and store remain available, but they are not durable across restarts.
 
-Before answering, the agent applies a hard safety rule baked into its system prompt: if the situation involves emergency warning signs (fever under 3 months, trouble breathing, injury after a fall), the response leads with a direction to call the local emergency number immediately and not wait for BeeDoula. Routine answers are composed from retrieved context with source citations, in metric units, calibrated to the baby's age. BeeDoula is explicitly not a medical app: it provides general care information, never diagnoses or recommends treatment, and directs the babysitter to the parents or pediatrician when unsure.
+The current safety behavior is an explicit system-prompt requirement, reinforced by the emergency banner in the frontend: emergency responses must lead with a direction to call the local emergency number. It is not yet a separate deterministic safety node, so deterministic triage and a dedicated safety evaluation remain required upgrades. Routine answers are instructed to use retrieved context and metric units. The retriever currently returns passage text without source metadata, so reliable user-facing citations are also planned rather than claimed as complete.
 
 ---
 
@@ -146,7 +173,7 @@ Before answering, the agent applies a hard safety rule baked into its system pro
 
 ### 3.1 Data sources and external APIs
 
-**RAG corpus** (`data/`) — authoritative, freely distributable care guidance covering the four domains our eval questions probe:
+**RAG corpus** (`data/`) — care guidance from established health organizations covering the four domains our eval questions probe. Source versions, direct download URLs, and redistribution terms still need to be recorded before a production release:
 
 | File | Source | Covers |
 |---|---|---|
@@ -178,19 +205,32 @@ Why:
 
 ### 4.1 Architecture notes
 
-The prototype is the stack from the Task 2 diagrams, working end to end:
+The repository implements an end-to-end **single-family, non-durable prototype**. It demonstrates the user-facing workflow but does not yet implement the separate production architecture shown in Task 2:
 
-- **Agent** (`app/graphs/simple_agent.py`): LangGraph `create_agent` with a safety-first system prompt (emergency escalation before anything else, no diagnosis, metric units only, cite sources).
-- **Tools** (`app/tools.py`): `retrieve_information` (RAG over the corpus + family notes), `tavily_search` (live web), `get_baby_profile` / `save_baby_fact` (long-term memory in the LangGraph store, namespace `("beedoula", "baby_profile")`).
+- **Agent** (`app/graphs/simple_agent.py`): LangGraph `create_agent` with prompt-based emergency escalation, grounding, and tool-selection rules; a deterministic safety gate is not yet implemented.
+- **Tools** (`app/tools.py`): `retrieve_information` (hybrid RAG over the corpus + sample family notes), optional `tavily_search` (live web), and `get_baby_profile` / `save_baby_fact` (one shared demonstration namespace, `("beedoula", "baby_profile")`).
 - **LLM + embeddings** (`app/models.py`, `app/rag.py`): both routed through the Vercel AI Gateway with a single `vck_` key — no direct provider keys anywhere.
 - **Frontend** (`frontend/`): Next.js streaming chat with an API passthrough that keeps keys server-side; tool activity is shown as labeled badges ("Care guidelines", "Baby profile", "Web search", "Remembering").
+- **Storage** (`app/rag.py`, LangGraph development server): Qdrant, checkpoints, and profile data are process-local. The vector index is rebuilt from `data/` for each new process, and all stored state can be lost on restart.
 
-Verified end to end by two smoke tests (`smoke_test_local.py` in-process, `smoke_test_sdk.py` against the server): the agent answers care questions grounded in the WHO/NICHD/CDC/AHA corpus, saves a fact told in one conversation ("Mia is allergic to eggs"), and applies it in a *different* thread ("no scrambled eggs — your family notes say...").
+Two smoke-test scripts cover local retrieval and server SDK behavior, including saving a fact in one thread and recalling it in another. Historical evaluation runs demonstrate this flow, but a current smoke run still requires valid gateway credentials and a reachable backend; it is not presented as proof of durable production storage.
+
+Known prototype limitations are explicit:
+
+| Implemented now | Still required |
+|---|---|
+| Streaming chat and server-side API proxy | Verified public frontend and backend URLs |
+| LangGraph tool-calling agent | Production server/runtime configuration |
+| Hybrid dense + BM25 retrieval | Persistent, pre-indexed Qdrant collection |
+| Process-local thread and profile memory | Postgres-backed durable checkpoints and store |
+| One shared demonstration baby profile | Authentication, family/baby isolation, and roles |
+| Prompt-based emergency instructions and UI banner | Deterministic safety gate and safety-specific evals |
+| Retrieved passage text | Source/page metadata and verified user-facing citations |
 
 ### 4.2 Deployment
 
-- **Backend**: LangGraph server (Docker/free tier) on Render — blueprint in `render.yaml`. _URL: TODO after deploy._
-- **Frontend**: Vercel. _URL: TODO after deploy._
+- **Backend configuration**: `render.yaml` defines a Render native Python service running `langgraph dev`. This is a prototype configuration, not a Docker/Postgres production deployment. _Public URL: TODO after verification._
+- **Frontend configuration**: the Next.js application and server-side proxy are ready for Vercel. _Public URL: TODO after verification._
 
 ---
 
@@ -279,9 +319,11 @@ Faithfulness — the metric that matters most in a safety domain — improved by
 
 **What we change** — ordered by impact:
 
-1. **Real persistence.** The free-tier backend runs LangGraph's in-memory server, so baby profiles and threads reset on restart. Demo Day version: the full LangGraph Docker image with Postgres (checkpoints + store) and a persistent Qdrant Cloud collection indexed once at deploy, not per boot.
-2. **Multi-family support.** One shared profile namespace was fine for a prototype; real use needs auth and a namespace per family — the store API already supports it.
-3. **Retrieval, round two.** The Session 7 playbook has two proven upgrades we haven't spent yet: parent-child chunking (retrieve small, hand the model the whole section — directly targets the remaining context-recall gap) and a reranker over the hybrid candidates.
-4. **A bigger, licensed corpus.** Four documents cover the eval set thinly (fever and injury guidance is weakest); adding vetted content on illness, teething, and vaccination schedules — with licensing checked — raises the ceiling on every metric.
-5. **Answer-accuracy recovery.** The grounding trade-off cost 6 accuracy points; better retrieval (#3, #4) should win most of them back without loosening the grounding rule.
-6. **Ops maturity**: flag low-faithfulness answers in LangSmith for review, and run the eval harness in CI so no prompt or retriever change ships without a before/after table.
+1. **Verified deployment.** Publish and smoke-test the Vercel frontend and Render backend, then replace every URL placeholder with the verified endpoints.
+2. **Production runtime and persistence.** Replace `langgraph dev` and process-local state with a production service, Postgres-backed checkpoints/store, and a persistent Qdrant Cloud collection indexed through a separate ingestion job.
+3. **Multi-family support.** Add authentication, parent/babysitter roles, and server-derived namespaces per family and baby; the current shared profile is demonstration-only.
+4. **Deterministic safety.** Add a pre-agent emergency triage gate and a dedicated safety evaluation covering critical misses, first-line escalation, over-escalation, adversarial prompts, and latency.
+5. **Verifiable citations.** Preserve source, document title, page, and URL metadata through retrieval and render citations in the frontend; score citation correctness in the eval harness.
+6. **Retrieval, round two.** Add parent-child chunking and a reranker over hybrid candidates to target the remaining context-recall gap.
+7. **A bigger, licensed corpus.** Add vetted sources on illness, teething, and vaccination schedules, recording source URLs, publication dates, versions, and redistribution status.
+8. **Answer-accuracy recovery and operations.** Recover accuracy through better coverage without loosening grounding, flag low-faithfulness runs in LangSmith, and run tests plus eval gates in CI.
