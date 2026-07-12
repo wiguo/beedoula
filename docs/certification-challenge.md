@@ -84,6 +84,8 @@ flowchart TB
         UI --> PX
     end
     subgraph Server["Backend — Render blueprint runs langgraph dev"]
+        SG{Deterministic<br/>safety gate}
+        FIX[Fixed emergency or<br/>urgent response]
         LG[LangGraph create_agent<br/>tool-calling loop]
         MEM[(LangGraph development<br/>checkpoints + shared profile<br/>non-durable)]
         IDX[(In-memory Qdrant + BM25<br/>built from data/ per process)]
@@ -96,7 +98,10 @@ flowchart TB
         TAV[Tavily web search]
         LS[LangSmith<br/>tracing & datasets]
     end
-    PX -- "streamed messages<br/>(LangGraph API)" --> LG
+    PX -- "latest caregiver message" --> SG
+    SG -- "emergency / urgent" --> FIX
+    SG -- "routine" --> LG
+    FIX -- "immediate fixed response" --> UI
     LG -- "LLM calls" --> GW --> OAI
     LG -- "web search tool" --> TAV
     LG -. "traces / evals" .-> LS
@@ -134,6 +139,7 @@ Why each component and its current status:
 | LLM | OpenAI `gpt-5.4-mini` | Strong instruction-following and tool-calling at a cost suitable for a small prototype. | Implemented through configuration. |
 | LLM gateway | Vercel AI Gateway | One OpenAI-compatible endpoint provides routing and spend visibility without provider-specific application code. | Implemented; requires a valid deployment credential. |
 | Agent orchestration | LangGraph | Supplies the tool-calling loop, thread protocol, checkpointer, and store interfaces used by the frontend and memory tools. | Implemented with the development server. |
+| Safety gate | Deterministic pre-agent router | High-signal emergency and urgent messages receive fixed escalation before any model, retrieval, profile, or web call. | Implemented with 87-case offline regression evidence; clinical review is still required. |
 | Tools | RAG retriever · Tavily · memory tools | RAG covers static guidance, Tavily covers time-sensitive questions, and memory tools hold baby-specific facts. | Implemented; Tavily is enabled only when its key is configured. |
 | Embeddings | OpenAI `text-embedding-3-small` | Appropriate cost and quality for this small corpus and compatible with the gateway. | Implemented; embeddings are regenerated per backend process. |
 | Vector retrieval | In-memory Qdrant + BM25 + RRF | Dense retrieval handles paraphrases while BM25 preserves exact ages, amounts, and safety terms. | Implemented and non-durable; Qdrant Cloud is planned. |
@@ -147,7 +153,12 @@ Why each component and its current status:
 
 ```mermaid
 flowchart TD
-    U([Caregiver asks a question<br/>e.g. 'Can she have honey? She's 10 months.']) --> T[Development checkpointer restores<br/>the thread when available]
+    U([Caregiver asks a question]) --> S{Deterministic<br/>safety route}
+    S -- "emergency" --> E[Fixed first line:<br/>call local emergency number now]
+    S -- "urgent" --> Q[Fixed first line:<br/>contact pediatrician or<br/>urgent medical service now]
+    E --> O([Response returned without<br/>model or tool calls])
+    Q --> O
+    S -- "routine" --> T[Development checkpointer restores<br/>the thread when available]
     T --> R{Agent chooses tools<br/>under system-prompt rules}
     R -- "baby-specific context needed" --> P[Read shared baby profile]
     R -- "care knowledge" --> RAG[📚 Retrieve from guidelines<br/>Qdrant vector search]
@@ -163,9 +174,9 @@ flowchart TD
     O -- "caregiver decides & acts —<br/>human always in the loop" --> H[👤 Human judgment]
 ```
 
-When a caregiver sends a message, the development checkpointer can restore that thread. The model then decides which tools to call under the system prompt: it reads the shared baby profile when the question is baby-specific, retrieves care information from the in-memory hybrid index, uses Tavily for time-sensitive questions, or writes a newly supplied fact to the profile. These choices are agent decisions rather than guaranteed deterministic steps. Profile facts can be recalled across threads while the same backend process and store remain available, but they are not durable across restarts.
+When a caregiver sends a message, a deterministic router examines the latest text before the agent runs. High-signal emergency messages receive a fixed instruction to call the local emergency number; urgent young-infant fever and concerning head-injury messages receive a fixed direction to seek urgent clinical help. These paths make no model, retrieval, profile, or web call first. Routine messages continue to the existing agent, where the development checkpointer can restore the thread and the model decides which tools to call. Profile facts remain non-durable across backend restarts.
 
-The current safety behavior is an explicit system-prompt requirement, reinforced by the emergency banner in the frontend: emergency responses must lead with a direction to call the local emergency number. It is not yet a separate deterministic safety node, so deterministic triage and a dedicated safety evaluation remain required upgrades. Routine answers are instructed to use retrieved context and metric units. The retriever currently returns passage text without source metadata, so reliable user-facing citations are also planned rather than claimed as complete.
+The safety contract, reviewed source links, rule identifiers, fixed wording, acceptance thresholds, and limitations are documented in `docs/safety-contract.md`. The system prompt and permanent frontend banner remain defense-in-depth measures. The router is English-only and evaluated on a project-authored dataset; it is software evidence, not clinical validation. Routine answers are instructed to use retrieved context and metric units. The retriever still returns passage text without source metadata, so reliable user-facing citations remain planned rather than claimed as complete.
 
 ---
 
@@ -207,7 +218,7 @@ Why:
 
 The repository implements an end-to-end **single-family, non-durable prototype**. It demonstrates the user-facing workflow but does not yet implement the separate production architecture shown in Task 2:
 
-- **Agent** (`app/graphs/simple_agent.py`): LangGraph `create_agent` with prompt-based emergency escalation, grounding, and tool-selection rules; a deterministic safety gate is not yet implemented.
+- **Agent** (`app/graphs/simple_agent.py`): a deterministic safety-gated LangGraph wraps `create_agent`; emergency and urgent routes return fixed escalation text before the tool-calling agent can run.
 - **Tools** (`app/tools.py`): `retrieve_information` (hybrid RAG over the corpus + sample family notes), optional `tavily_search` (live web), and `get_baby_profile` / `save_baby_fact` (one shared demonstration namespace, `("beedoula", "baby_profile")`).
 - **LLM + embeddings** (`app/models.py`, `app/rag.py`): both routed through the Vercel AI Gateway with a single `vck_` key — no direct provider keys anywhere.
 - **Frontend** (`frontend/`): Next.js streaming chat with an API passthrough that keeps keys server-side; tool activity is shown as labeled badges ("Care guidelines", "Baby profile", "Web search", "Remembering").
@@ -224,7 +235,7 @@ Known prototype limitations are explicit:
 | Hybrid dense + BM25 retrieval | Persistent, pre-indexed Qdrant collection |
 | Process-local thread and profile memory | Postgres-backed durable checkpoints and store |
 | One shared demonstration baby profile | Authentication, family/baby isolation, and roles |
-| Prompt-based emergency instructions and UI banner | Deterministic safety gate and safety-specific evals |
+| Deterministic emergency/urgent gate, prompt fallback, UI banner, and offline safety evals | Independent pediatric/first-aid review, multilingual coverage, and broader real-world safety cases |
 | Retrieved passage text | Source/page metadata and verified user-facing citations |
 
 ### 4.2 Deployment
@@ -238,10 +249,12 @@ Known prototype limitations are explicit:
 
 ### 5.1 Test dataset
 
-The dataset (`beedoula-eval-v1` in LangSmith, 29 examples, built by `evals/build_dataset.py`) combines two sources:
+The main RAG dataset (`beedoula-eval-v1` in LangSmith, 29 examples, built by `evals/build_dataset.py`) combines two sources:
 
 1. **9 synthetic examples** generated with the RAGAS `TestsetGenerator` over the guideline corpus, using the same Vercel AI Gateway models as the app. Corpus pages are merged per source and re-split into substantial sections first, because RAGAS's headline-extraction transforms fail on thin, image-heavy PDF pages.
 2. **20 hand-written golden questions** from Task 1, each with a reference answer and a `kind` tag: `corpus` (answerable from the guidelines), `memory` (depends on the baby's saved profile), and `web` (requires live search). This deliberately covers all three retrieval paths of the agent, not just RAG.
+
+A separate committed pressure-test dataset (`evals/safety_cases.jsonl`) contains **87 cases**: 47 emergencies, 13 urgent cases, and 27 routine controls. It covers breathing problems, abnormal blue/grey color, unresponsiveness, seizures, choking, severe bleeding, young-infant fever, concerning symptoms after head injury, multi-turn deterioration, misspellings, abbreviated ages, temperatures entered without units, hypothetical education questions, and adversarial attempts to suppress escalation.
 
 ### 5.2 Evaluation harness
 
@@ -251,6 +264,8 @@ The harness (`evals/run_evals.py`) is a rerunnable script, isolated in its own u
 2. **Runs the real agent** — not a stripped-down RAG chain — against each question in a fresh thread via the LangGraph SDK, capturing the final answer and every tool result (retrieval chunks, profile reads, web results) as the retrieved contexts.
 3. **Scores three RAGAS metrics** with an LLM judge routed through the same gateway: **context recall** (did retrieval fetch the facts the reference needs?), **faithfulness** (is the answer grounded in what was retrieved?), and **answer accuracy** (does the answer match the reference?).
 4. **Logs everything to LangSmith** as a named experiment (`EVAL_EXPERIMENT_PREFIX`) and writes a per-question CSV to `evals/out/` — so baseline vs. improved comparisons in Task 6 are one environment variable apart.
+
+Safety is evaluated separately by `evals/run_safety_evals.py`. This offline harness directly tests the deterministic router and fixed first lines without an LLM judge or network call. The `unittest` suite also invokes the real compiled BeeDoula graph with an unreachable model endpoint to prove emergency and urgent paths bypass the model and retrieval.
 
 ### 5.3 Baseline results and conclusions
 
@@ -268,6 +283,23 @@ Baseline (dense retrieval, k=4), experiment `baseline-clean-51b6438d`, 29/29 exa
 2. **The agent papers over retrieval gaps with parametric knowledge.** Answer accuracy (0.65) is much higher than faithfulness (0.40): when retrieval misses, the model answers from what it learned in training. Often correct — but in a safety domain we want verifiable, source-grounded answers, so faithfulness is the metric we most want to raise.
 3. **Memory works.** Memory-kind questions score best across the board (accuracy 0.83), confirming the profile store pipeline retrieves and applies baby-specific facts.
 4. **Web-kind scores are structurally noisy.** References for live-web questions describe expected *behavior* rather than fixed facts, so recall-against-reference is near zero by construction. We keep them in the set to watch answer accuracy, and treat their recall/faithfulness as a known limitation of the harness, not the agent.
+
+### 5.4 Safety pressure-test results
+
+Offline run `safety_summary_20260712T142207Z.json` over all 87 committed cases:
+
+| Metric | Result |
+|---|---:|
+| Route accuracy | **100%** |
+| Emergency escalation recall | **100%** (47/47) |
+| Critical miss rate | **0%** |
+| Urgent-route recall | **100%** (13/13) |
+| Routine over-escalation rate | **0%** (0/27) |
+| Fixed first-line compliance | **100%** (60/60 emergency + urgent cases) |
+| Adversarial route accuracy | **100%** |
+| Median / p95 router latency | **0.028 ms / 0.058 ms** |
+
+These results prove the implemented routing contract on this curated dataset and show that fixed escalation does not wait for the LLM. They do **not** prove clinical safety or performance on all real messages: the cases were authored with the rule set, English paraphrase coverage is finite, and independent expert review remains outstanding.
 
 ---
 
@@ -305,6 +337,20 @@ Full progression across the three experiments:
 
 Faithfulness — the metric that matters most in a safety domain — improved by a third over baseline. Context recall also rose, as the grounded agent retrieves more before answering. The answer-accuracy dip is a deliberate trade: the agent now sometimes answers "the guidelines I have don't cover this — ask your pediatrician" where it previously produced a plausible-but-ungrounded answer. Judged against a reference, the refusal scores lower; judged as a product for stressed caregivers of infants, **verifiable-or-defer is the correct behavior**. This is a meaningfully improved response profile, demonstrated with the eval harness as evidence.
 
+### 6.4 Safety improvement: deterministic pre-agent escalation
+
+The previous design relied on the model following a safety paragraph in its system prompt, so it could not structurally guarantee escalation before tool calls. The new graph routes high-signal messages through deterministic code and fixed responses before `create_agent` runs. Eight automated tests cover dataset routing, first-line wording, adversarial instructions, normal-agent routing, and the real compiled graph's model-free emergency and urgent paths. The 87-case results in 5.4 provide reproducible evidence while explicitly retaining the need for independent clinical review.
+
+| Safety property | Before: prompt-only agent | After: deterministic gate |
+|---|---|---|
+| Escalation before model/tools | Requested in the prompt, not guaranteed | Structurally enforced for matched rules |
+| Works when model endpoint is unreachable | No | Yes; verified against the real compiled graph |
+| Fixed first-line contract | Model-generated | Exact constant, 60/60 compliant cases |
+| Critical pressure-test misses | No dedicated benchmark existed | 0/47 on the committed curated emergency set |
+| Routine over-escalation | Not measured | 0/27 on committed routine controls |
+
+The “before” column is a structural comparison, not a fabricated numeric baseline: the original prompt-only version was not run on this newly authored dataset. Future work should archive a model-based baseline once valid deployment credentials are restored.
+
 ---
 
 ## Task 7: Next Steps
@@ -314,6 +360,7 @@ Faithfulness — the metric that matters most in a safety domain — improved by
 - **The LangGraph agent with three grounding layers** (guideline RAG, baby-profile memory, live web search): every eval segment confirmed each layer pulls its weight — memory questions score highest, and web search covers what a static corpus can't.
 - **One-key LLM gateway routing** for chat and embeddings: simplest possible ops, provider flexibility for free.
 - **Hybrid retrieval + the grounded prompt**: +33% relative faithfulness with three days of eval evidence behind it.
+- **The deterministic safety gate and regression dataset**: critical escalation is now independent of model compliance for covered high-signal patterns.
 - **The eval harness itself**: it's rerunnable, tagged by question kind, and one env variable per experiment — it already caught one regression during development and becomes our pre-release gate.
 - **The Next.js/Vercel frontend**: streaming, mobile-friendly, cheap.
 
@@ -322,7 +369,7 @@ Faithfulness — the metric that matters most in a safety domain — improved by
 1. **Verified deployment.** Publish and smoke-test the Vercel frontend and Render backend, then replace every URL placeholder with the verified endpoints.
 2. **Production runtime and persistence.** Replace `langgraph dev` and process-local state with a production service, Postgres-backed checkpoints/store, and a persistent Qdrant Cloud collection indexed through a separate ingestion job.
 3. **Multi-family support.** Add authentication, parent/babysitter roles, and server-derived namespaces per family and baby; the current shared profile is demonstration-only.
-4. **Deterministic safety.** Add a pre-agent emergency triage gate and a dedicated safety evaluation covering critical misses, first-line escalation, over-escalation, adversarial prompts, and latency.
+4. **Independent safety review.** Have a qualified pediatric/first-aid reviewer assess trigger rules, fixed responses, critical cases, and false positives; expand beyond English and project-authored paraphrases.
 5. **Verifiable citations.** Preserve source, document title, page, and URL metadata through retrieval and render citations in the frontend; score citation correctness in the eval harness.
 6. **Retrieval, round two.** Add parent-child chunking and a reranker over hybrid candidates to target the remaining context-recall gap.
 7. **A bigger, licensed corpus.** Add vetted sources on illness, teething, and vaccination schedules, recording source URLs, publication dates, versions, and redistribution status.

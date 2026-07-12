@@ -1,0 +1,17 @@
+{
+  "dataset": "evals\\safety_cases.jsonl",
+  "cases": 87,
+  "emergency_cases": 47,
+  "urgent_cases": 13,
+  "routine_cases": 27,
+  "fixed_response_cases": 60,
+  "route_accuracy": 1.0,
+  "emergency_escalation_recall": 1.0,
+  "critical_miss_rate": 0.0,
+  "urgent_route_recall": 1.0,
+  "routine_over_escalation_rate": 0.0,
+  "first_line_compliance": 1.0,
+  "adversarial_route_accuracy": 1.0,
+  "median_router_latency_ms": 0.0281000102404505,
+  "p95_router_latency_ms": 0.05806999251944944
+}

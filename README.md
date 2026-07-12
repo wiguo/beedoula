@@ -19,6 +19,7 @@ This project is a submission for the AI Engineering Certification Challenge.
 |---|---|
 | LLM | OpenAI via LLM gateway |
 | Orchestration | LangGraph |
+| Safety | Deterministic emergency/urgent router before the agent |
 | Tools | RAG retriever · Tavily web search · baby-profile memory |
 | Embeddings / retrieval | OpenAI `text-embedding-3-small` / in-memory Qdrant + BM25 |
 | Memory | LangGraph development checkpointer + shared profile store (non-durable) |
@@ -31,10 +32,14 @@ This project is a submission for the AI Engineering Certification Challenge.
 The repository currently implements a single-family prototype. Its Qdrant index,
 conversation checkpoints, and baby-profile store are process-local and can reset when
 the backend restarts. Public deployment URLs, persistent Qdrant/Postgres storage,
-authentication, family isolation, deterministic emergency triage, and verified source
-citations are planned work rather than current features. See the
+authentication, family isolation, independent clinical safety review, and verified source
+citations are planned work rather than current features. The implemented safety gate is
+covered by an 87-case offline regression set but is not clinical validation. See the
 [written deliverables](docs/certification-challenge.md) for separate current and target
 architecture diagrams.
+
+Safety behavior, sources, acceptance criteria, and limitations are documented in the
+[prototype safety contract](docs/safety-contract.md).
 
 ## Local development
 
@@ -42,6 +47,10 @@ architecture diagrams.
 # Backend (from repo root)
 uv sync
 uv run langgraph dev          # dev server on :2024
+
+# Offline safety regression tests (no model/network calls)
+uv run python -m unittest discover -s tests -v
+uv run python evals/run_safety_evals.py
 
 # Frontend
 cd frontend

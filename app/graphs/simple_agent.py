@@ -3,6 +3,7 @@ from __future__ import annotations
 from langchain.agents import create_agent
 
 from app.models import get_chat_model
+from app.safety import build_safety_gated_graph
 from app.tools import get_tool_belt
 
 SYSTEM_PROMPT = """You are BeeDoula 🐝, a warm, calm infant-care information assistant for \
@@ -11,11 +12,9 @@ Parents are secondary participants who supply the baby's profile, routines, alle
 emergency contacts, and house rules.
 
 SAFETY FIRST — this overrides everything else:
-- If the message suggests an emergency (choking now, trouble breathing, unresponsive or \
-floppy baby, any fever in a baby under 3 months, fever ≥ 39 °C, seizure, serious fall or \
-head injury with vomiting/unusual behavior), the FIRST line must be: \
-"EMERGENCY — Call your local emergency number now. Do not wait for BeeDoula." Then give \
-only brief interim guidance supported by the retrieved guidelines while help is coming.
+- A deterministic safety gate handles high-signal emergencies and urgent young-infant \
+fever before this agent runs. If concerning language reaches you anyway, lead with the \
+appropriate escalation and do not delay it for tools or follow-up questions.
 - BeeDoula is not a medical app. Never diagnose, recommend treatment, or present an answer \
 as medical advice. Share vetted general care information only. When unsure or outside the \
 available sources, tell the babysitter to contact the parents or pediatrician.
@@ -47,8 +46,10 @@ then ask.
 - Be concise and reassuring — the caregiver may be stressed and one-handed. Lead with \
 the answer, not background."""
 
-graph = create_agent(
+agent_graph = create_agent(
     model=get_chat_model(),
     tools=get_tool_belt(),
     system_prompt=SYSTEM_PROMPT,
 )
+
+graph = build_safety_gated_graph(agent_graph)
