@@ -1,7 +1,7 @@
 # Certification Challenge — BeeDoula 🐝: Infant Care Assistant (0–24 months)
 
 > Submission for the AI Engineering Certification Challenge (AI Makerspace).
-> Live app: _TODO (Step 4)_ · Demo video: _TODO (Step 7)_
+> Live app: [https://beedoula.vercel.app](https://beedoula.vercel.app) · Demo video: _TODO (Step 7)_
 
 ---
 
@@ -241,7 +241,7 @@ Known prototype limitations are explicit:
 ### 4.2 Deployment
 
 - **Backend configuration**: `render.yaml` defines a Render native Python service running `langgraph dev`. This is a prototype configuration, not a Docker/Postgres production deployment. _Public URL: TODO after verification._
-- **Frontend configuration**: the Next.js application and server-side proxy are ready for Vercel. _Public URL: TODO after verification._
+- **Frontend deployment**: the Next.js application and server-side proxy are deployed on Vercel at [https://beedoula.vercel.app](https://beedoula.vercel.app). The production alias returns HTTP 200 for commit `687a751`; chat remains dependent on the separately hosted backend.
 
 ---
 
