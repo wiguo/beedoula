@@ -10,7 +10,7 @@ BeeDoula helps babysitters follow the parents' instructions and trusted infant-c
 
 This project is a submission for the AI Engineering Certification Challenge.
 📄 **[Written deliverables: docs/certification-challenge.md](docs/certification-challenge.md)**
-🎥 **Demo video:** _coming soon_
+🎥 **Demo video:** [Watch the BeeDoula demo on Vimeo](https://vimeo.com/1209724650?share=copy&fl=sv&fe=ci)
 🌐 **Live app:** [https://beedoula.vercel.app](https://beedoula.vercel.app)
 
 ## Stack

@@ -1,7 +1,7 @@
 # Certification Challenge — BeeDoula 🐝: Infant Care Assistant (0–24 months)
 
 > Submission for the AI Engineering Certification Challenge (AI Makerspace).
-> Live app: [https://beedoula.vercel.app](https://beedoula.vercel.app) · Demo video: _TODO (Step 7)_
+> Live app: [https://beedoula.vercel.app](https://beedoula.vercel.app) · Demo video: [Watch on Vimeo](https://vimeo.com/1209724650?share=copy&fl=sv&fe=ci)
 
 ---
 
